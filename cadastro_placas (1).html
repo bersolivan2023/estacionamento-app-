@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Painel Estacionamento App</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Ícone do app -->
+<link rel="icon" href="https://i.imgur.com/F6t5xqP.png">
+<link rel="apple-touch-icon" href="https://i.imgur.com/F6t5xqP.png">
+
+<!-- Fullscreen no celular -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+
+<style>
+body { 
+  background-color: #111; 
+  color: #fff; 
+  font-family: Arial; 
+  padding: 20px; 
+  font-size: 22px; 
+  max-width: 480px; 
+  margin: auto;
+}
+
+h2 { text-align: center; font-size: 32px; margin-bottom: 20px; }
+
+input { 
+  padding: 20px; margin: 10px 0; width: 100%; font-size: 24px;
+  border-radius: 12px; border: 2px solid #444;
+  background-color: #222; color: #fff;
+}
+
+button { 
+  padding: 20px; margin: 10px 0; width: 100%; font-size: 24px;
+  border-radius: 12px; border: none; font-weight: bold; cursor: pointer;
+  transition: 0.2s;
+}
+
+button:hover { opacity: 0.8; }
+
+#btnSair { background-color: #D32F2F; color: #fff; }
+#btnCadastrar { background-color: #00C853; color: #000; }
+#btnConsultar { background-color: #0288D1; color: #fff; }
+
+li { 
+  padding: 15px; background: #222; margin: 8px 0; font-size: 22px;
+  border-left: 6px solid #00C853; border-radius: 6px;
+}
+
+.info { margin: 10px 0; font-weight: bold; font-size: 24px; }
+#disponiveis { color: #00E676; }
+#ocupadas { color: #FF3D00; }
+
+.cadastrado {
+  animation: flash 0.5s;
+}
+@keyframes flash {
+  0% { background-color: #00C853; color: #fff; }
+  50% { background-color: #fff; color: #00C853; }
+  100% { background-color: #00C853; color: #fff; }
+}
+
+.lotado { color: red !important; }
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <h2>Login Funcionário</h2>
+  <input type="text" id="usuario" placeholder="Usuário">
+  <input type="password" id="senha" placeholder="Senha">
+  <button onclick="entrar()">Entrar</button>
+</div>
+
+<!-- PAINEL -->
+<div id="painel" style="display:none;">
+  <h2>Painel Estacionamento</h2>
+  <button id="btnSair" onclick="sair()">Sair</button>
+
+  <div class="info">Vagas Totais: <span id="total">100</span></div>
+  <div class="info">Ocupadas: <span id="ocupadas">0</span></div>
+  <div class="info">Disponíveis: <span id="disponiveis">100</span></div>
+
+  <input type="text" id="placa" placeholder="Digite a placa">
+  <button id="btnCadastrar" onclick="adicionar()">Cadastrar</button>
+  <button id="btnConsultar" onclick="consultar()">Consultar Placa</button>
+
+  <ul id="lista"></ul>
+</div>
+
+<!-- Firebase compatível com celulares -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyDswebbgccM6OI6fD1m8tchLFVTCdUxYvo",
+  authDomain: "estacionamento10parque.firebaseapp.com",
+  projectId: "estacionamento10parque",
+  storageBucket: "estacionamento10parque.firebasestorage.app",
+  messagingSenderId: "735018821210",
+  appId: "1:735018821210:web:edf39062dabc9261f71a63"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+let vagasTotais = 100;
+let placas = [];
+
+let usuarios = [
+  { usuario: "admin", senha: "123", nivel: "admin" },
+  { usuario: "func1", senha: "123", nivel: "funcionario" },
+  { usuario: "func2", senha: "123", nivel: "funcionario" }
+];
+
+let usuarioLogado = null;
+
+// Função adicionar placa
+function adicionar() {
+  if (!usuarioLogado) { alert("Faça login primeiro!"); return; }
+
+  let placaDigitada = document.getElementById("placa").value.toUpperCase().trim();
+  if (!placaDigitada) return alert("Digite uma placa!");
+  if (placas.length >= vagasTotais) return alert("Estacionamento LOTADO!");
+
+  db.collection("placas").add({
+    placa: placaDigitada,
+    usuario: usuarioLogado.usuario,
+    data: new Date()
+  });
+
+  // Animação flash
+  document.getElementById("placa").classList.add("cadastrado");
+  setTimeout(() => { document.getElementById("placa").classList.remove("cadastrado"); }, 500);
+
+  document.getElementById("placa").value = "";
+}
+
+// Consultar placa
+function consultar() {
+  if (!usuarioLogado) { alert("Faça login primeiro!"); return; }
+
+  let placaDigitada = document.getElementById("placa").value.toUpperCase().trim();
+  db.collection("placas").get().then((snapshot) => {
+    let encontrada = null;
+    snapshot.forEach((doc) => {
+      if (doc.data().placa === placaDigitada) encontrada = doc.data();
+    });
+
+    if (encontrada) alert("Placa ENCONTRADA!\nCadastrada por: " + encontrada.usuario);
+    else alert("Placa NÃO encontrada.");
+  });
+}
+
+// Atualiza lista em tempo real
+function atualizarListaTempoReal() {
+  if (!usuarioLogado) return;
+
+  db.collection("placas").onSnapshot((snapshot) => {
+    let lista = document.getElementById("lista");
+    lista.innerHTML = "";
+    placas = [];
+    snapshot.forEach((doc) => { placas.push({ id: doc.id, ...doc.data() }); });
+
+    placas.forEach((item) => {
+      let li = document.createElement("li");
+      li.textContent = item.placa + " | Cadastrado por: " + item.usuario;
+      if (usuarioLogado && usuarioLogado.nivel === "admin") {
+        li.onclick = function() {
+          if (confirm("Remover placa?")) db.collection("placas").doc(item.id).delete();
+        }
+      }
+      lista.appendChild(li);
+    });
+
+    document.getElementById("ocupadas").textContent = placas.length;
+    document.getElementById("disponiveis").textContent = vagasTotais - placas.length;
+
+    if (placas.length >= vagasTotais) document.getElementById("disponiveis").classList.add("lotado");
+    else document.getElementById("disponiveis").classList.remove("lotado");
+  });
+}
+
+// Login
+function entrar() {
+  let u = document.getElementById("usuario").value.trim();
+  let s = document.getElementById("senha").value.trim();
+  let usuarioValido = usuarios.find(user => user.usuario === u && user.senha === s);
+  if (usuarioValido) {
+    usuarioLogado = usuarioValido;
+    document.getElementById("login").style.display = "none";
+    document.getElementById("painel").style.display = "block";
+    atualizarListaTempoReal();
+  } else alert("Usuário ou senha incorretos!");
+}
+
+// Sair
+function sair() {
+  usuarioLogado = null;
+  document.getElementById("login").style.display = "block";
+  document.getElementById("painel").style.display = "none";
+}
+</script>
+
+</body>
+</html>
